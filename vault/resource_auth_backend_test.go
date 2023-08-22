@@ -214,7 +214,7 @@ func TestResourceAuthTune(t *testing.T) {
 			{
 				Config: testResourceAuthTune_initialConfig(backend),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckAuthMountExists(resName, &resAuthFirst),
+					testutil.TestAccCheckAuthMountExists(resName, &resAuthFirst, testProvider),
 					resource.TestCheckResourceAttr(resName, "path", backend),
 					resource.TestCheckResourceAttr(resName, "id", backend),
 					resource.TestCheckResourceAttr(resName, "type", "github"),

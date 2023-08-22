@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"math/big"
 	"net"
 	"net/http"
@@ -32,11 +33,13 @@ import (
 	"github.com/coreos/pkg/multierror"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/hashicorp/vault/api"
 	"github.com/mitchellh/go-homedir"
 
 	"github.com/hashicorp/terraform-provider-vault/internal/consts"
+	"github.com/hashicorp/terraform-provider-vault/internal/provider"
 )
 
 const (
@@ -784,6 +787,42 @@ func GetImportTestStep(resourceName string, skipVerify bool, check resource.Impo
 	}
 
 	return ts
+}
+
+func TestAccCheckAuthMountExists(n string, out *api.AuthMount, tp *schema.Provider) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		return AuthMountExistsHelper(n, s, out, tp)
+	}
+}
+
+func AuthMountExistsHelper(resourceName string, s *terraform.State, out *api.AuthMount, tp *schema.Provider) error {
+	rs, ok := s.RootModule().Resources[resourceName]
+	if !ok {
+		return fmt.Errorf("Not found: %s", resourceName)
+	}
+
+	if rs.Primary.ID == "" {
+		return fmt.Errorf("No id for %s is set", resourceName)
+	}
+
+	client, e := provider.GetClient(rs.Primary, tp.Meta())
+	if e != nil {
+		return e
+	}
+
+	auths, err := client.Sys().ListAuth()
+	if err != nil {
+		return fmt.Errorf("error reading from Vault: %s", err)
+	}
+
+	resp := auths[strings.Trim(rs.Primary.ID, "/")+"/"]
+	if resp == nil {
+		return fmt.Errorf("auth mount %s not present", rs.Primary.ID)
+	}
+	log.Printf("[INFO] Auth mount resource '%v' confirmed to exist at path: %v", resourceName, rs.Primary.ID)
+	*out = *resp
+
+	return nil
 }
 
 // GetNamespaceImportStateCheck checks that the namespace was properly imported into the state.
